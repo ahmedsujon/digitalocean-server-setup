@@ -146,9 +146,10 @@ composer self-update --1
 composer install
 
 
-
-
-
 Seed Problem
-apt install php8.1-mbstring
+sudo apt-get install php8.1-mysql
+sudo apt install php8.1-mbstring
 sudo apt-get install php8.1-xml
+
+
+
