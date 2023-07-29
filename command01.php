@@ -34,6 +34,10 @@ sudo apt-get install php8.1-curl
 # sudo add-apt-repository ppa:ondrej/php && sudo apt-get update && sudo apt -y install php8.1 && sudo apt-get install -y php8.1-cli php8.1-json php8.1-common php8.1-mysql php8.1-zip php8.1-gd php8.1-mbstring php8.1-curl php8.1-xml php8.1-bcmath
 # systemctl status nginx
 
+====Remove Apapche server=====
+# sudo apt remove apache2
+#sudo apt purge apache2
+
 
 === cd var/ww/html===
 # rm -rf index.html
