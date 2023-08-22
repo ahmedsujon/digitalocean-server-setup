@@ -149,8 +149,11 @@ composer --version
 composer self-update --1
 composer install
 
+# Class "DOMDocument" not found
+sudo apt-get install php8.2-dom
+sudo apt-get install php8.2-xml
 
-Seed Problem
+# Seed Problem
 sudo apt-get install php8.1-mysql
 sudo apt install php8.1-mbstring
 sudo apt-get install php8.1-xml
