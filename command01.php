@@ -2,31 +2,6 @@ ssh-keygen -t rsa -b 4096 -C "sujonahmed424@gmail.com"
 cat /root/.ssh/id_rsa.pub
 ssh -T git@github.com
 
-sudo apt-get update
-sudo apt-cache search php
-sudo add-apt-repository ppa:ondrej/php
-sudo apt-add-repository ppa:nilarimogard/webupd8
-
-
-sudo launchpad-getkeys
-
-sudo apt-get install -y php8.1-cli php8.1-fpm php8.0-mbstring php8.1-mysql php8.1-curl php8.1-mcrypt
-sudo add-apt-repository ppa:ondrej/php && sudo apt-get update && sudo apt -y install php8.1 && sudo apt-get install -y
-php8.1-cli php8.1-json php8.1-common php8.1-mysql php8.1-zip php8.1-gd php8.1-mbstring php8.1-curl php8.1-xml
-php8.1-bcmath
-
-sudo apt-get install mysql-server
-sudo apt-get install nginx
-sudo apt-get install git
-sudo apt-get install zip unzip
-
-curl -sS https://getComposer.org/installer | sudo php -- --install-dir=/usr/local/bin --filename=composer
-
-sudo apt-get install php8.1-curl
-
-
-
-
 ==========================START FROM HERE======================================
 # sudo apt-get update
 # sudo apt-get install nginx
@@ -36,7 +11,7 @@ sudo apt-get install php8.1-curl
 
 ====Remove Apapche server=====
 # sudo apt remove apache2
-#sudo apt purge apache2
+# sudo apt purge apache2
 
 
 === cd var/ww/html===
@@ -71,7 +46,7 @@ sudo service nginx reload
 sudo nginx -t
 systemctl status nginx
 
-======== sudo /etc/nginx/sites-available/default =====
+================== sudo /etc/nginx/sites-available/default ==============
 server {
     listen 80;
     server_name 64.227.8.60;
@@ -107,13 +82,22 @@ server {
 }
 
 
-502 error
+=============if face 502 error=============
 apt install php8.1-fpm
 
-========== file permission =======
 
+========== file permission =======
 chown -R www-data:www-data /var/www/html/projectName/storage/
 chown -R www-data:www-data /var/www/html/projectName/bootstrap/
+
+================= Class "DOMDocument" not found===================
+sudo apt-get install php8.2-dom
+sudo apt-get install php8.2-xml
+
+====================== Seed Problem =====================
+sudo apt-get install php8.1-mysql
+sudo apt install php8.1-mbstring
+sudo apt-get install php8.1-xml
 
 
 
@@ -149,14 +133,27 @@ composer --version
 composer self-update --1
 composer install
 
-# Class "DOMDocument" not found
-sudo apt-get install php8.2-dom
-sudo apt-get install php8.2-xml
 
-# Seed Problem
-sudo apt-get install php8.1-mysql
-sudo apt install php8.1-mbstring
-sudo apt-get install php8.1-xml
+============================EXTRA========================
+sudo apt-get update
+sudo apt-cache search php
+sudo add-apt-repository ppa:ondrej/php
+sudo apt-add-repository ppa:nilarimogard/webupd8
 
 
+sudo launchpad-getkeys
+
+sudo apt-get install -y php8.1-cli php8.1-fpm php8.0-mbstring php8.1-mysql php8.1-curl php8.1-mcrypt
+sudo add-apt-repository ppa:ondrej/php && sudo apt-get update && sudo apt -y install php8.1 && sudo apt-get install -y
+php8.1-cli php8.1-json php8.1-common php8.1-mysql php8.1-zip php8.1-gd php8.1-mbstring php8.1-curl php8.1-xml
+php8.1-bcmath
+
+sudo apt-get install mysql-server
+sudo apt-get install nginx
+sudo apt-get install git
+sudo apt-get install zip unzip
+
+curl -sS https://getComposer.org/installer | sudo php -- --install-dir=/usr/local/bin --filename=composer
+
+sudo apt-get install php8.1-curl
 
