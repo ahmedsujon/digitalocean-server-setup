@@ -27,7 +27,7 @@ sudo apt-get install php8.1-curl
 
 
 
-================================================================
+==========================START FROM HERE======================================
 # sudo apt-get update
 # sudo apt-get install nginx
 # sudo apt install software-properties-common apt-transport-https -y
