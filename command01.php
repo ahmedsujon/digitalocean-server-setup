@@ -85,6 +85,9 @@ server {
 =============if face 502 error=============
 apt install php8.1-fpm
 
+==== if face Call to undefined function mysqli_init()===
+sudo apt-get install php8.*-mysqli
+
 
 ========== file permission =======
 chown -R www-data:www-data /var/www/html/projectName/storage/
