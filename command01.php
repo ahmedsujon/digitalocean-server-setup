@@ -25,7 +25,7 @@ ssh -T git@github.com
 
 ****** Composer install ******
 # curl -sS https://getComposer.org/installer | sudo php -- --install-dir=/usr/local/bin --filename=composer
-# composer -version
+# composer --version
 *search google if face any error on composer install (remove server requirments)*
 # composer install --ignore-platform-reqs
 
