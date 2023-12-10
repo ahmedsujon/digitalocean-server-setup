@@ -49,8 +49,8 @@ systemctl status nginx
 ================== sudo /etc/nginx/sites-available/default ==============
 server {
     listen 80;
-    server_name 64.227.8.60;
-    root /var/www/html/hugeicon/public;
+    server_name 68.183.92.248;
+    root /var/www/html/aponshop/public;
 
     add_header X-Frame-Options "SAMEORIGIN";
     add_header X-XSS-Protection "1; mode=block";
@@ -94,7 +94,9 @@ chown -R www-data:www-data /var/www/html/projectName/storage/
 chown -R www-data:www-data /var/www/html/projectName/bootstrap/
 
 ================= Class "DOMDocument" not found===================
-sudo apt-get install php8.2-dom
+
+
+
 sudo apt-get install php8.2-xml
 
 ====================== Seed Problem =====================
@@ -159,4 +161,7 @@ sudo apt-get install zip unzip
 curl -sS https://getComposer.org/installer | sudo php -- --install-dir=/usr/local/bin --filename=composer
 
 sudo apt-get install php8.1-curl
+
+=========== GitLab======
+sudo apt install php8.1-zip
 
