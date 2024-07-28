@@ -1,3 +1,10 @@
+
+```bash
+systemctl status nginx
+```
+
+
+
 ssh-keygen -t rsa -b 4096 -C "sujonahmed424@gmail.com"
 cat /root/.ssh/id_rsa.pub
 ssh -T git@github.com
