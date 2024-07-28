@@ -1,8 +1,3 @@
-
-ssh-keygen -t rsa -b 4096 -C "sujonahmed424@gmail.com"
-cat /root/.ssh/id_rsa.pub
-ssh -T git@github.com
-
 ==========================START FROM HERE======================================
 # sudo apt-get update
 # sudo apt-get install nginx
@@ -15,23 +10,19 @@ ssh -T git@github.com
 # sudo apt purge apache2
 
 
-=== cd var/ww/html===
-# rm -rf index.html
-
 # ssh-keygen -t rsa -b 4096 -C "sujonahmed424@gmail.com"
 # cat /root/.ssh/id_rsa.pub
 # ssh -T git@github.com
 # git clone 
 
 
-****** Composer install ******
-# curl -sS https://getComposer.org/installer | sudo php -- --install-dir=/usr/local/bin --filename=composer
+============= Composer install ===============
+# sudo curl -sS https://getComposer.org/installer | sudo php -- --install-dir=/usr/local/bin --filename=composer
 # composer --version
-*search google if face any error on composer install (remove server requirments)*
-# composer install --ignore-platform-reqs
+# sudo composer install --ignore-platform-reqs
 
 
-***** Install Mysql *****
+================ Install Mysql =====================
 # sudo apt update
 # sudo apt install mysql-server
 # sudo mysql
@@ -42,8 +33,6 @@ ssh -T git@github.com
 
 sudo service nginx restart
 sudo service nginx reload
-
-
 sudo nginx -t
 systemctl status nginx
 
@@ -96,9 +85,8 @@ chown -R www-data:www-data /var/www/html/projectName/bootstrap/
 
 ================= Class "DOMDocument" not found===================
 
-
-
 sudo apt-get install php8.2-xml
+
 
 ====================== Seed Problem =====================
 sudo apt-get install php8.1-mysql
@@ -106,25 +94,7 @@ sudo apt install php8.1-mbstring
 sudo apt-get install php8.1-xml
 
 
-
-========== ssl install ==================
-sudo apt install certbot python3-certbot-nginx
-sudo nginx -t
-sudo systemctl reload nginx
-sudo ufw status
-sudo ufw allow 'Nginx Full'
-sudo ufw allow 'OpenSSH'
-sudo certbot --nginx -d takmel.com -d www.takmel.com
-
-
-
-https://developers.google.com/speed/public-dns/cache
-https://1.1.1.1/purge-cache/
-
-
-
-
-#Sub domain Create
+================ Sub domain Create ===============
 # Git clone
 # env update
 # cp default crm.educationat.org.conf
