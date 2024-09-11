@@ -94,6 +94,18 @@ sudo apt-get install php8.1-mysql
 sudo apt install php8.1-mbstring
 sudo apt-get install php8.1-xml
 
+================= Limit File Upload Size in NGINX =========
+/etc/php/8.2/fpm/php.ini
+upload_max_filesize = 999M
+post_max_size = 999M
+
+/etc/nginx/nginx.conf 
+        server {
+             client_max_body_size 100M;
+         }
+
+systemctl restart nginx
+systemctl restart php8.2-fpm
 
 ================ Sub domain Create ===============
 # Git clone
@@ -105,10 +117,6 @@ sudo apt-get install php8.1-xml
 # ln -s /etc/nginx/sites-avaialble/crm.educationat.org.conf /etc/nginx/sites-enabled/
 # systemctl restart nginx
 
-
-composer --version
-composer self-update --1
-composer install
 
 
 ============================EXTRA========================
