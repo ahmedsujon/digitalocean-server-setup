@@ -20,13 +20,6 @@ root@takmel:~# ufw status
 Status: inactive
 root@takmel:~# cd /etc/nginx/sites-available/
 root@takmel:/etc/nginx/sites-available# sudo nano default 
-root@takmel:/etc/nginx/sites-available# cd
-root@takmel:~# sudo service nginx restart
-root@takmel:~# sudo service nginx reload
-root@takmel:~# ps auxf | grep nginx
-root     24004  0.0  0.1  14860  1048 pts/0    S+   18:19   0:00          \_ grep --color=auto nginx
-root     23970  0.0  0.7 141384  7248 ?        Ss   18:14   0:00 nginx: master process /usr/sbin/nginx -g daemon on; master_process on;
-www-data 23988  0.0  0.6 143864  6388 ?        S    18:14   0:00  \_ nginx: worker process
 root@takmel:~# ufw status
 Status: inactive
 root@takmel:~# cd /etc/nginx/sites-available/
@@ -34,123 +27,6 @@ root@takmel:/etc/nginx/sites-available# sudo nano default
 root@takmel:/etc/nginx/sites-available# cd
 root@takmel:~# sudo service nginx restart
 root@takmel:~# sudo service nginx reload
-root@takmel:~# php -m
-[PHP Modules]
-calendar
-Core
-ctype
-curl
-date
-dom
-exif
-FFI
-fileinfo
-filter
-ftp
-gettext
-hash
-iconv
-json
-libxml
-mbstring
-mysqli
-mysqlnd
-openssl
-pcntl
-pcre
-PDO
-pdo_mysql
-Phar
-posix
-readline
-Reflection
-session
-shmop
-SimpleXML
-sockets
-sodium
-SPL
-standard
-sysvmsg
-sysvsem
-sysvshm
-tokenizer
-xml
-xmlreader
-xmlwriter
-xsl
-Zend OPcache
-zlib
-
-[Zend Modules]
-Zend OPcache
-
-root@takmel:~# php -v
-PHP 8.1.13 (cli) (built: Nov 26 2022 14:07:18) (NTS)
-Copyright (c) The PHP Group
-Zend Engine v4.1.13, Copyright (c) Zend Technologies
-    with Zend OPcache v8.1.13, Copyright (c), by Zend Technologies
-root@takmel:~# apt install php8.1-fpm
-Reading package lists... Done
-Building dependency tree       
-Reading state information... Done
-Suggested packages:
-  php-pear
-The following NEW packages will be installed:
-  php8.1-fpm
-0 upgraded, 1 newly installed, 0 to remove and 92 not upgraded.
-Need to get 1646 kB of archives.
-After this operation, 5514 kB of additional disk space will be used.
-Get:1 http://ppa.launchpad.net/ondrej/php/ubuntu bionic/main amd64 php8.1-fpm amd64 8.1.13-1+ubuntu18.04.1+deb.sury.org+1 [1646 kB]
-Fetched 1646 kB in 3s (634 kB/s)      
-Selecting previously unselected package php8.1-fpm.
-(Reading database ... 62276 files and directories currently installed.)
-Preparing to unpack .../php8.1-fpm_8.1.13-1+ubuntu18.04.1+deb.sury.org+1_amd64.deb ...
-Unpacking php8.1-fpm (8.1.13-1+ubuntu18.04.1+deb.sury.org+1) ...
-Setting up php8.1-fpm (8.1.13-1+ubuntu18.04.1+deb.sury.org+1) ...
-
-Creating config file /etc/php/8.1/fpm/php.ini with new version
-NOTICE: Not enabling PHP 8.1 FPM by default.
-NOTICE: To enable PHP 8.1 FPM in Apache2 do:
-NOTICE: a2enmod proxy_fcgi setenvif
-NOTICE: a2enconf php8.1-fpm
-NOTICE: You are seeing this message because you have apache2 package installed.
-Created symlink /etc/systemd/system/multi-user.target.wants/php8.1-fpm.service → /lib/systemd/system/php8.1-fpm.service.
-Processing triggers for man-db (2.8.3-2ubuntu0.1) ...
-Processing triggers for ureadahead (0.100.0-21) ...
-Processing triggers for systemd (237-3ubuntu10.53) ...
-Processing triggers for php8.1-fpm (8.1.13-1+ubuntu18.04.1+deb.sury.org+1) ...
-NOTICE: Not enabling PHP 8.1 FPM by default.
-NOTICE: To enable PHP 8.1 FPM in Apache2 do:
-NOTICE: a2enmod proxy_fcgi setenvif
-NOTICE: a2enconf php8.1-fpm
-NOTICE: You are seeing this message because you have apache2 package installed.
-root@takmel:~# chown -R www-data:www-data /var/www/html/project/storage
-chown: cannot access '/var/www/html/project/storage': No such file or directory
-root@takmel:~# cd /var/www/html/takmel/storage/
-root@takmel:/var/www/html/takmel/storage# cd
-root@takmel:~# chown -R www-data:www-data /var/www/html/takmel/storage/
-root@takmel:~# chown -R www-data:www-data /var/www/html/takmel/bootstrap/
-root@takmel:~# cd /var/www/html/takmel/
-root@takmel:/var/www/html/takmel# php artisan key:generate
-
-   INFO  Application key set successfully.  
-
-root@takmel:/var/www/html/takmel# ping takmel.com
-PING takmel.com (139.59.28.148) 56(84) bytes of data.
-64 bytes from takmel (139.59.28.148): icmp_seq=1 ttl=64 time=0.011 ms
-64 bytes from takmel (139.59.28.148): icmp_seq=2 ttl=64 time=0.043 ms
-64 bytes from takmel (139.59.28.148): icmp_seq=3 ttl=64 time=0.056 ms
-
---- takmel.com ping statistics ---
-735 packets transmitted, 735 received, 0% packet loss, time 751582ms
-rtt min/avg/max/mdev = 0.011/0.049/0.460/0.020 ms
-root@takmel:/var/www/html/takmel# cd
-root@takmel:~# cd /etc/nginx/sites-available/
-root@takmel:/etc/nginx/sites-available# sudo nano default 
-root@takmel:/etc/nginx/sites-available# 
-root@takmel:/etc/nginx/sites-available# sudo nano default 
-root@takmel:/etc/nginx/sites-available# sudo nano default 
 root@takmel:/etc/nginx/sites-available# nginx -t
 nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
 nginx: configuration file /etc/nginx/nginx.conf test is successful
