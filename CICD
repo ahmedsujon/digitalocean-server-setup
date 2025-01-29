@@ -1,1 +1,77 @@
+Step 1: Generate SSH Key on Your Droplet
+Run the following command on your DigitalOcean Droplet:
+# ssh-keygen -t rsa -b 4096 -C "your-email@example.com"
 
+Step 2: Add the SSH Key to GitHub
+Display the public key:
+sh
+Copy
+Edit
+cat ~/.ssh/id_rsa.pub
+Copy the output and go to your GitHub Repository > Settings > Deploy Keys.
+Click Add Deploy Key, paste the SSH key, and check Allow write access.
+Save the key.
+
+
+Step 3: Configure SSH for GitHub on Your Droplet
+Edit the SSH configuration file:
+nano ~/.ssh/config
+
+Add the following:
+    Host github.com
+    User git
+    IdentityFile ~/.ssh/id_rsa
+    StrictHostKeyChecking no
+
+
+Set correct permissions:
+    chmod 600 ~/.ssh/id_rsa
+    chmod 644 ~/.ssh/id_rsa.pub
+
+Test the connection:
+    ssh -T git@github.com
+
+Step 4: Change the Git Remote URL
+On your Droplet, navigate to your project directory:
+    cd /var/www/html/sadax
+    git remote set-url origin git@github.com:your-username/your-repository.git
+
+Verify the remote URL:
+    git remote -v
+
+You should see:
+    origin  git@github.com:your-username/your-repository.git (fetch)
+    origin  git@github.com:your-username/your-repository.git (push)
+
+name: Laravel Auto Deployment
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Deploy to DigitalOcean Droplet
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DROPLET_IP }}
+          username: root
+          password: ${{ secrets.DROPLET_PASSWORD }}
+          script: |
+            eval `ssh-agent -s`
+            ssh-add ~/.ssh/id_rsa
+            cd /var/www/html/sadax
+            git pull origin main
+            php artisan migrate --force
+            php artisan config:clear
+            php artisan cache:clear
+            php artisan route:clear
+            php artisan view:clear
+            sudo systemctl restart nginx
