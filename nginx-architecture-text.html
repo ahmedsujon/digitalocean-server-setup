@@ -1,0 +1,1883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nginx Load Balancer Architecture - TextTorrent</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #eee;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        /* Navigation Bar */
+        .navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(13, 13, 13, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid #333;
+            z-index: 1000;
+            padding: 0;
+        }
+
+        .navbar-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 20px;
+        }
+
+        .navbar-brand {
+            font-size: 1.2rem;
+            font-weight: bold;
+            background: linear-gradient(90deg, #00d9ff, #00ff88);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-decoration: none;
+        }
+
+        .navbar-menu {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .navbar-menu a {
+            color: #aaa;
+            text-decoration: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+
+        .navbar-menu a:hover {
+            background: rgba(0, 217, 255, 0.2);
+            color: #00d9ff;
+        }
+
+        .navbar-menu a.active {
+            background: #00d9ff;
+            color: #000;
+        }
+
+        /* Mobile menu toggle */
+        .menu-toggle {
+            display: none;
+            background: none;
+            border: 2px solid #00d9ff;
+            color: #00d9ff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        @media (max-width: 1200px) {
+            .navbar-menu a {
+                padding: 6px 8px;
+                font-size: 0.75rem;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .menu-toggle {
+                display: block;
+            }
+
+            .navbar-menu {
+                display: none;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: rgba(13, 13, 13, 0.98);
+                flex-direction: column;
+                padding: 15px;
+                border-bottom: 1px solid #333;
+            }
+
+            .navbar-menu.active {
+                display: flex;
+            }
+
+            .navbar-menu a {
+                padding: 12px 15px;
+                font-size: 0.9rem;
+                border-bottom: 1px solid #222;
+            }
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 80px 20px 40px 20px; /* Added top padding for fixed navbar */
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #00d9ff, #00ff88);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 40px;
+            font-size: 1.1rem;
+        }
+
+        /* Architecture Diagram */
+        .architecture-diagram {
+            background: #1e1e2e;
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 40px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .diagram-title {
+            text-align: center;
+            font-size: 1.5rem;
+            margin-bottom: 30px;
+            color: #00d9ff;
+        }
+
+        .diagram-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        /* Internet/Users */
+        .internet-layer {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+        }
+
+        .user-icon {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+
+        /* Arrow */
+        .arrow {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: #00ff88;
+        }
+
+        .arrow-line {
+            width: 4px;
+            height: 40px;
+            background: linear-gradient(180deg, #00ff88, #00d9ff);
+        }
+
+        .arrow-head {
+            width: 0;
+            height: 0;
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-top: 15px solid #00d9ff;
+        }
+
+        .arrow-label {
+            font-size: 0.8rem;
+            color: #888;
+            margin-top: 5px;
+        }
+
+        /* Server Boxes */
+        .server-box {
+            background: linear-gradient(135deg, #2d2d44, #1a1a2e);
+            border: 2px solid #00d9ff;
+            border-radius: 15px;
+            padding: 25px;
+            min-width: 280px;
+            text-align: center;
+            position: relative;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .server-box:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 217, 255, 0.2);
+        }
+
+        .server-box.load-balancer {
+            border-color: #ff6b6b;
+            background: linear-gradient(135deg, #3d2d44, #2a1a2e);
+        }
+
+        .server-box.backend {
+            border-color: #00ff88;
+        }
+
+        .server-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .server-ip {
+            background: #000;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+
+        .server-services {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            margin-top: 15px;
+        }
+
+        .service-badge {
+            background: rgba(0, 217, 255, 0.2);
+            border: 1px solid #00d9ff;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+        }
+
+        .service-badge.port {
+            background: rgba(255, 107, 107, 0.2);
+            border-color: #ff6b6b;
+        }
+
+        /* Backend Servers Row */
+        .backend-row {
+            display: flex;
+            gap: 40px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        /* Split arrows */
+        .split-arrows {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            gap: 200px;
+            position: relative;
+        }
+
+        .split-arrows::before {
+            content: '';
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 240px;
+            height: 4px;
+            background: linear-gradient(90deg, #00d9ff, #00ff88, #00d9ff);
+        }
+
+        /* Section Cards */
+        .section {
+            background: #1e1e2e;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .section h2 {
+            color: #00d9ff;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #333;
+        }
+
+        .section h3 {
+            color: #00ff88;
+            margin: 20px 0 15px 0;
+        }
+
+        /* Config Code Blocks */
+        .config-block {
+            background: #0d0d0d;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 15px 0;
+            overflow-x: auto;
+            border-left: 4px solid #00d9ff;
+        }
+
+        .config-block pre {
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            color: #00ff88;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .config-block .comment {
+            color: #666;
+        }
+
+        .config-block .keyword {
+            color: #ff6b6b;
+        }
+
+        .config-block .value {
+            color: #ffd93d;
+        }
+
+        /* Info Cards Grid */
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .info-card {
+            background: linear-gradient(135deg, #2d2d44, #1a1a2e);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #333;
+        }
+
+        .info-card h4 {
+            color: #00d9ff;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .info-card p {
+            color: #aaa;
+            font-size: 0.95rem;
+        }
+
+        /* Traffic Flow */
+        .traffic-flow {
+            background: linear-gradient(135deg, #1a2a1a, #1a1a2e);
+            border-radius: 15px;
+            padding: 30px;
+            margin: 30px 0;
+        }
+
+        .flow-step {
+            display: flex;
+            align-items: flex-start;
+            gap: 20px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: rgba(0, 255, 136, 0.05);
+            border-radius: 10px;
+            border-left: 3px solid #00ff88;
+        }
+
+        .step-number {
+            background: #00ff88;
+            color: #000;
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .step-content h4 {
+            color: #00ff88;
+            margin-bottom: 5px;
+        }
+
+        .step-content p {
+            color: #aaa;
+        }
+
+        /* Firewall Rules Table */
+        .firewall-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .firewall-table th,
+        .firewall-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #333;
+        }
+
+        .firewall-table th {
+            background: #00d9ff;
+            color: #000;
+            font-weight: 600;
+        }
+
+        .firewall-table tr:hover {
+            background: rgba(0, 217, 255, 0.1);
+        }
+
+        .allow-badge {
+            background: #00ff88;
+            color: #000;
+            padding: 3px 10px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .deny-badge {
+            background: #ff6b6b;
+            color: #000;
+            padding: 3px 10px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        /* Network Diagram */
+        .network-diagram {
+            background: #0d0d0d;
+            border-radius: 15px;
+            padding: 40px;
+            margin: 30px 0;
+            text-align: center;
+        }
+
+        .network-box {
+            display: inline-block;
+            background: #1e1e2e;
+            border: 2px solid #00d9ff;
+            border-radius: 10px;
+            padding: 15px 25px;
+            margin: 10px;
+        }
+
+        .network-box.wireguard {
+            border-color: #ffd93d;
+            background: linear-gradient(135deg, #3d3d2e, #2e2e1a);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.8rem;
+            }
+
+            .backend-row {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .split-arrows::before {
+                display: none;
+            }
+
+            .split-arrows {
+                flex-direction: column;
+                gap: 20px;
+            }
+        }
+
+        /* Legend */
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin: 30px 0;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 5px;
+        }
+
+        .legend-color.lb {
+            background: #ff6b6b;
+        }
+
+        .legend-color.backend {
+            background: #00ff88;
+        }
+
+        .legend-color.api {
+            background: #00d9ff;
+        }
+
+        /* Upstream visualization */
+        .upstream-viz {
+            background: #0d0d0d;
+            border-radius: 15px;
+            padding: 30px;
+            margin: 20px 0;
+        }
+
+        .upstream-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .upstream-method {
+            background: #ffd93d;
+            color: #000;
+            padding: 8px 20px;
+            border-radius: 20px;
+            display: inline-block;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .upstream-servers {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+
+        .upstream-server {
+            background: #1e1e2e;
+            border: 2px solid #00ff88;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            min-width: 200px;
+        }
+
+        .upstream-server .ip {
+            font-family: monospace;
+            color: #00ff88;
+            font-size: 1.1rem;
+        }
+
+        .upstream-server .params {
+            color: #888;
+            font-size: 0.85rem;
+            margin-top: 10px;
+        }
+        /* Smooth scrolling */
+        html {
+            scroll-behavior: smooth;
+        }
+
+        /* Scroll margin for sections */
+        .section, .architecture-diagram {
+            scroll-margin-top: 70px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+        <div class="navbar-container">
+            <a href="#top" class="navbar-brand">TextTorrent Infra</a>
+            <button class="menu-toggle" onclick="toggleMenu()">&#9776; Menu</button>
+            <div class="navbar-menu" id="navMenu">
+                <a href="#quick-reference">Quick Ref</a>
+                <a href="#architecture">Architecture</a>
+                <a href="#vpn-access">VPN Access</a>
+                <a href="#traffic-flow">Traffic Flow</a>
+                <a href="#domains">Domains</a>
+                <a href="#load-balancer">Load Balancer</a>
+                <a href="#api-config">API Config</a>
+                <a href="#firewall">Firewall</a>
+                <a href="#security">Security</a>
+                <a href="#backend">Backend</a>
+                <a href="#lb-methods">LB Methods</a>
+                <a href="#parameters">Parameters</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container" id="top">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 20px;">
+            <div>
+                <h1>Nginx Load Balancer Architecture</h1>
+                <p class="subtitle">TextTorrent Infrastructure - Ubuntu Server Deployment</p>
+            </div>
+            <div style="text-align: right; color: #888; font-size: 0.9rem; padding-top: 10px;">
+                <p style="color: #00ff88; font-weight: bold;">Created by Ariful Islam</p>
+                <p>Software Engineer | Network Infrastructure Designer</p>
+                <p><a href="mailto:arif98741@gmail.com" style="color: #00d9ff; text-decoration: none;">arif98741@gmail.com</a></p>
+                <p><a href="tel:+8801733499574" style="color: #ffd93d; text-decoration: none;">+880 1733499574</a></p>
+            </div>
+        </div>
+
+        <!-- Quick Reference: All IPs and Ports -->
+        <div class="section" id="quick-reference" style="background: linear-gradient(135deg, #0d1a0d, #1e1e2e); border: 2px solid #00ff88;">
+            <h2 style="color: #00ff88;">&#128204; Quick Reference: All IPs & Ports</h2>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; margin-top: 20px;">
+                <!-- Server 1 -->
+                <div style="background: #0d0d0d; border-radius: 12px; padding: 20px; border: 2px solid #ff6b6b;">
+                    <h3 style="color: #ff6b6b; margin-bottom: 15px;">SERVER 1 (Load Balancer)</h3>
+                    <table style="width: 100%; color: #eee;">
+                        <tr>
+                            <td style="padding: 8px 0; color: #888;">vRack Private IP:</td>
+                            <td style="padding: 8px 0; font-family: monospace; color: #00ff88; font-weight: bold;">10.10.0.10</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; color: #888;">HTTP Port:</td>
+                            <td style="padding: 8px 0; font-family: monospace; color: #ffd93d;">:80</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; color: #888;">HTTPS Port:</td>
+                            <td style="padding: 8px 0; font-family: monospace; color: #ffd93d;">:443</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; color: #888;">Backend App Port:</td>
+                            <td style="padding: 8px 0; font-family: monospace; color: #ffd93d;">:8080</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; color: #888;">SSH Port:</td>
+                            <td style="padding: 8px 0; font-family: monospace; color: #ffd93d;">:22 <span style="color: #ff6b6b; font-size: 0.8rem;">(VPN only)</span></td>
+                        </tr>
+                    </table>
+                </div>
+
+                <!-- Server 2 -->
+                <div style="background: #0d0d0d; border-radius: 12px; padding: 20px; border: 2px solid #00ff88;">
+                    <h3 style="color: #00ff88; margin-bottom: 15px;">SERVER 2 (Backend)</h3>
+                    <table style="width: 100%; color: #eee;">
+                        <tr>
+                            <td style="padding: 8px 0; color: #888;">vRack Private IP:</td>
+                            <td style="padding: 8px 0; font-family: monospace; color: #00ff88; font-weight: bold;">10.10.0.11</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; color: #888;">App Backend Port:</td>
+                            <td style="padding: 8px 0; font-family: monospace; color: #ffd93d;">:8080</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; color: #888;">API Backend Port:</td>
+                            <td style="padding: 8px 0; font-family: monospace; color: #ffd93d;">:8081</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; color: #888;">SSH Port:</td>
+                            <td style="padding: 8px 0; font-family: monospace; color: #ffd93d;">:22 <span style="color: #ff6b6b; font-size: 0.8rem;">(VPN only)</span></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Complete IP:Port Mapping Table -->
+            <h3 style="color: #00d9ff; margin: 30px 0 15px 0;">Complete Service Mapping</h3>
+            <div style="overflow-x: auto;">
+                <table class="firewall-table">
+                    <thead>
+                        <tr>
+                            <th>Service</th>
+                            <th>Domain</th>
+                            <th>Entry Point (LB)</th>
+                            <th>Backend Target</th>
+                            <th>Protocol</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Main Application</strong></td>
+                            <td>app.texttorrent.org</td>
+                            <td style="font-family: monospace; color: #ff6b6b;">10.10.0.10:80/443</td>
+                            <td style="font-family: monospace; color: #00ff88;">10.10.0.10:8080<br>10.10.0.11:8080</td>
+                            <td>HTTP (Load Balanced)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>API Service</strong></td>
+                            <td>api.texttorrent.org</td>
+                            <td style="font-family: monospace; color: #ff6b6b;">10.10.0.10:80/443</td>
+                            <td style="font-family: monospace; color: #00d9ff;">10.10.0.11:8081</td>
+                            <td>HTTP + WebSocket</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Website</strong></td>
+                            <td>website.texttorrent.org</td>
+                            <td style="font-family: monospace; color: #ff6b6b;">10.10.0.10:80/443</td>
+                            <td style="font-family: monospace; color: #888;">Local (Server 1)</td>
+                            <td>HTTP (PHP-FPM)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>SSH Access</strong></td>
+                            <td>- (VPN Required)</td>
+                            <td style="font-family: monospace; color: #ffd93d;">10.10.0.10:22<br>10.10.0.11:22<br>10.10.0.20:22<br>10.10.0.21:22<br>10.10.0.30:22</td>
+                            <td style="font-family: monospace; color: #888;">All servers via VPN</td>
+                            <td>SSH (VPN Only - Port 22)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Network Subnet Info -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-top: 20px;">
+                <div style="background: linear-gradient(135deg, #3d3d1a, #2e2e1a); border: 2px solid #ffd93d; border-radius: 10px; padding: 20px; text-align: center;">
+                    <h4 style="color: #ffd93d; margin-bottom: 10px;">OVH vRack Private Network</h4>
+                    <p style="font-family: monospace; font-size: 1.3rem; color: #ffd93d; margin: 0;">10.10.0.0/24</p>
+                    <p style="color: #888; margin-top: 10px; font-size: 0.85rem;">Internal server communication (vRack)</p>
+                </div>
+                <div style="background: linear-gradient(135deg, #2e1a3d, #1a1a2e); border: 2px solid #a855f7; border-radius: 10px; padding: 20px; text-align: center;">
+                    <h4 style="color: #a855f7; margin-bottom: 10px;">WireGuard VPN Network</h4>
+                    <p style="font-family: monospace; font-size: 1.3rem; color: #a855f7; margin: 0;">10.8.0.0/24</p>
+                    <p style="color: #888; margin-top: 10px; font-size: 0.85rem;">VPN client IP assignments</p>
+                </div>
+            </div>
+
+            <!-- All Infrastructure IPs -->
+            <h3 style="color: #00ff88; margin: 30px 0 15px 0;">Complete Infrastructure IPs</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+                <div style="background: #0d0d0d; padding: 12px; border-radius: 8px; border-left: 4px solid #ff6b6b;">
+                    <span style="color: #888; font-size: 0.8rem;">Load Balancer</span><br>
+                    <span style="font-family: monospace; color: #ff6b6b; font-size: 1.1rem;">10.10.0.10</span>
+                </div>
+                <div style="background: #0d0d0d; padding: 12px; border-radius: 8px; border-left: 4px solid #00ff88;">
+                    <span style="color: #888; font-size: 0.8rem;">App Backend</span><br>
+                    <span style="font-family: monospace; color: #00ff88; font-size: 1.1rem;">10.10.0.11</span>
+                </div>
+                <div style="background: #0d0d0d; padding: 12px; border-radius: 8px; border-left: 4px solid #ffd93d;">
+                    <span style="color: #888; font-size: 0.8rem;">Write DB (Primary)</span><br>
+                    <span style="font-family: monospace; color: #ffd93d; font-size: 1.1rem;">10.10.0.20</span>
+                </div>
+                <div style="background: #0d0d0d; padding: 12px; border-radius: 8px; border-left: 4px solid #ffd93d;">
+                    <span style="color: #888; font-size: 0.8rem;">Read DB (Replica)</span><br>
+                    <span style="font-family: monospace; color: #ffd93d; font-size: 1.1rem;">10.10.0.21</span>
+                </div>
+                <div style="background: #0d0d0d; padding: 12px; border-radius: 8px; border-left: 4px solid #e74c3c;">
+                    <span style="color: #888; font-size: 0.8rem;">VPN + Redis Server</span><br>
+                    <span style="font-family: monospace; color: #e74c3c; font-size: 1.1rem;">10.10.0.30</span>
+                </div>
+            </div>
+
+            <!-- SSH Access Notice -->
+            <div style="background: linear-gradient(135deg, #3d1a1a, #1a1a2e); border: 2px solid #ff6b6b; border-radius: 10px; padding: 20px; margin-top: 20px;">
+                <h4 style="color: #ff6b6b; margin-bottom: 10px;">&#128274; SSH Access - VPN Required</h4>
+                <p style="color: #aaa;">All servers can <strong>only</strong> be accessed via SSH (port 22) through the WireGuard VPN. Direct SSH from the internet is blocked.</p>
+                <p style="color: #888; margin-top: 10px; font-size: 0.9rem;">Connect to VPN first → Then SSH to any server on 10.10.0.0/24</p>
+            </div>
+        </div>
+
+        <!-- Main Architecture Diagram -->
+        <div class="architecture-diagram" id="architecture">
+            <h2 class="diagram-title">System Architecture Overview</h2>
+
+            <div class="diagram-container">
+                <!-- Internet Users -->
+                <div class="internet-layer">
+                    <div class="user-icon">&#128100;</div>
+                    <div class="user-icon">&#128100;</div>
+                    <div class="user-icon">&#128100;</div>
+                </div>
+                <p style="color: #888; text-align: center;">Internet Users</p>
+
+                <!-- Arrow Down -->
+                <div class="arrow">
+                    <div class="arrow-line"></div>
+                    <div class="arrow-head"></div>
+                    <span class="arrow-label">HTTP/HTTPS (Port 80/443)</span>
+                </div>
+
+                <!-- Load Balancer Server -->
+                <div class="server-box load-balancer">
+                    <div class="server-title">&#128295; Server 1 - Load Balancer</div>
+                    <div class="server-ip">10.10.0.10</div>
+                    <p style="color: #aaa; font-size: 0.9rem;">Primary Entry Point & Reverse Proxy</p>
+                    <div class="server-services">
+                        <span class="service-badge port">:80</span>
+                        <span class="service-badge port">:443</span>
+                        <span class="service-badge">Nginx</span>
+                        <span class="service-badge">PHP-FPM</span>
+                    </div>
+                </div>
+
+                <!-- Split Arrows to Backend -->
+                <div class="split-arrows">
+                    <div class="arrow">
+                        <div class="arrow-line"></div>
+                        <div class="arrow-head"></div>
+                        <span class="arrow-label">:8080 (App)</span>
+                    </div>
+                    <div class="arrow">
+                        <div class="arrow-line"></div>
+                        <div class="arrow-head"></div>
+                        <span class="arrow-label">:8081 (API)</span>
+                    </div>
+                </div>
+
+                <!-- Backend Servers -->
+                <div class="backend-row">
+                    <div class="server-box backend">
+                        <div class="server-title">&#128421; Server 1 - Backend</div>
+                        <div class="server-ip">10.10.0.10:8080</div>
+                        <p style="color: #aaa; font-size: 0.9rem;">TextTorrent Application</p>
+                        <div class="server-services">
+                            <span class="service-badge">Laravel/PHP</span>
+                            <span class="service-badge">PHP 8.3-FPM</span>
+                        </div>
+                    </div>
+
+                    <div class="server-box backend">
+                        <div class="server-title">&#128421; Server 2 - Backend</div>
+                        <div class="server-ip">10.10.0.11:8080</div>
+                        <p style="color: #aaa; font-size: 0.9rem;">TextTorrent Application</p>
+                        <div class="server-services">
+                            <span class="service-badge">Laravel/PHP</span>
+                            <span class="service-badge">PHP 8.3-FPM</span>
+                        </div>
+                    </div>
+
+                    <div class="server-box" style="border-color: #00d9ff;">
+                        <div class="server-title">&#128161; Server 2 - API</div>
+                        <div class="server-ip">10.10.0.11:8081</div>
+                        <p style="color: #aaa; font-size: 0.9rem;">API Backend Service</p>
+                        <div class="server-services">
+                            <span class="service-badge">REST API</span>
+                            <span class="service-badge">PHP 8.3-FPM</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Legend -->
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-color lb"></div>
+                    <span>Load Balancer</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color backend"></div>
+                    <span>Backend Servers</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color api"></div>
+                    <span>API Service</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Network Topology -->
+        <div class="section">
+            <h2>&#127760; Network Topology</h2>
+            <div class="network-diagram">
+                <div class="network-box wireguard">
+                    <strong>OVH vRack Private Network</strong><br>
+                    <span style="color: #ffd93d;">10.10.0.0/24</span>
+                </div>
+                <br><br>
+                <div class="network-box">
+                    <strong>Server 1 (LB)</strong><br>
+                    10.10.0.10
+                </div>
+                <span style="color: #00d9ff; font-size: 2rem;">&#8596;</span>
+                <div class="network-box">
+                    <strong>Server 2 (Backend)</strong><br>
+                    10.10.0.11
+                </div>
+            </div>
+            <p style="text-align: center; color: #888;">All servers communicate through OVH vRack private network on the 10.10.0.0/24 subnet</p>
+        </div>
+
+        <!-- VPN Architecture to Access Server Resources -->
+        <div class="section" id="vpn-access" style="border: 2px solid #ffd93d;">
+            <h2 style="color: #ffd93d;">&#128272; VPN Architecture to Access Server Resources</h2>
+            <p style="color: #aaa; margin-bottom: 20px;">Clients connect via WireGuard VPN to access internal server resources securely.</p>
+
+            <!-- VPN Architecture Image -->
+            <div style="text-align: center; margin: 20px 0; padding: 20px; background: #f5f5f5; border-radius: 15px;">
+                <img src="../vpn architechture to access server.png" alt="VPN Architecture Diagram" style="max-width: 100%; height: auto; border-radius: 10px;">
+                <p style="color: #333; margin-top: 10px; font-size: 0.9rem;">VPN Architecture Diagram - Client Access to Server Resources</p>
+            </div>
+
+            <!-- Two VPN Networks -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin: 30px 0;">
+                <!-- Client VPN Network -->
+                <div style="background: linear-gradient(135deg, #2e1a3d, #1a1a2e); border: 2px solid #a855f7; border-radius: 12px; padding: 20px;">
+                    <h3 style="color: #a855f7; margin-bottom: 15px;">&#128100; Client VPN Network</h3>
+                    <div style="background: #0d0d0d; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                        <p style="color: #ffd93d; font-family: monospace; font-size: 1.2rem; text-align: center;">10.8.0.0/24</p>
+                    </div>
+                    <table style="width: 100%; color: #eee;">
+                        <tr style="border-bottom: 1px solid #333;">
+                            <td style="padding: 10px 0; color: #a855f7;">Ariful</td>
+                            <td style="padding: 10px 0; font-family: monospace; color: #00ff88; text-align: right;">10.8.0.2</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #333;">
+                            <td style="padding: 10px 0; color: #a855f7;">Sujon</td>
+                            <td style="padding: 10px 0; font-family: monospace; color: #00ff88; text-align: right;">10.8.0.3</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px 0; color: #a855f7;">Hridoy</td>
+                            <td style="padding: 10px 0; font-family: monospace; color: #00ff88; text-align: right;">10.8.0.4</td>
+                        </tr>
+                    </table>
+                </div>
+
+                <!-- Server Network -->
+                <div style="background: linear-gradient(135deg, #1a2e1a, #1a1a2e); border: 2px solid #00ff88; border-radius: 12px; padding: 20px;">
+                    <h3 style="color: #00ff88; margin-bottom: 15px;">&#128421; Server Network (Internal)</h3>
+                    <div style="background: #0d0d0d; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                        <p style="color: #ffd93d; font-family: monospace; font-size: 1.2rem; text-align: center;">10.10.0.0/24</p>
+                    </div>
+                    <p style="color: #888; font-size: 0.9rem; text-align: center;">VPN Clients can access resources on this subnet after connecting</p>
+                </div>
+            </div>
+
+            <!-- Complete Server Resources Table -->
+            <h3 style="color: #00d9ff; margin: 30px 0 15px 0;">Complete Infrastructure - All Server IPs</h3>
+            <div style="overflow-x: auto;">
+                <table class="firewall-table">
+                    <thead>
+                        <tr>
+                            <th>Server Role</th>
+                            <th>Hostname</th>
+                            <th>IP Address</th>
+                            <th>Services/Ports</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong style="color: #ff6b6b;">Load Balancer</strong></td>
+                            <td>Server 1</td>
+                            <td style="font-family: monospace; color: #00ff88;">10.10.0.10</td>
+                            <td><span style="background: #ff6b6b20; padding: 2px 8px; border-radius: 4px;">:80</span> <span style="background: #ff6b6b20; padding: 2px 8px; border-radius: 4px;">:443</span> <span style="background: #ff6b6b20; padding: 2px 8px; border-radius: 4px;">:8080</span> <span style="background: #ff6b6b20; padding: 2px 8px; border-radius: 4px;">:22</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong style="color: #00ff88;">App Backend</strong></td>
+                            <td>Server 2</td>
+                            <td style="font-family: monospace; color: #00ff88;">10.10.0.11</td>
+                            <td><span style="background: #00ff8820; padding: 2px 8px; border-radius: 4px;">:8080</span> <span style="background: #00d9ff20; padding: 2px 8px; border-radius: 4px;">:8081</span> <span style="background: #00ff8820; padding: 2px 8px; border-radius: 4px;">:22</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong style="color: #ffd93d;">Database (Write)</strong></td>
+                            <td>Write DB</td>
+                            <td style="font-family: monospace; color: #ffd93d;">10.10.0.20</td>
+                            <td><span style="background: #ffd93d20; padding: 2px 8px; border-radius: 4px;">:3306</span> (MySQL Primary)</td>
+                        </tr>
+                        <tr>
+                            <td><strong style="color: #ffd93d;">Database (Read)</strong></td>
+                            <td>Read DB</td>
+                            <td style="font-family: monospace; color: #ffd93d;">10.10.0.21</td>
+                            <td><span style="background: #ffd93d20; padding: 2px 8px; border-radius: 4px;">:3306</span> (MySQL Replica)</td>
+                        </tr>
+                        <tr>
+                            <td><strong style="color: #e74c3c;">VPN + Redis Server</strong></td>
+                            <td>VPN/Redis</td>
+                            <td style="font-family: monospace; color: #e74c3c;">10.10.0.30</td>
+                            <td><span style="background: #e74c3c20; padding: 2px 8px; border-radius: 4px;">:51820</span> (WireGuard) <span style="background: #e74c3c20; padding: 2px 8px; border-radius: 4px;">:6379</span> (Redis) <span style="background: #e74c3c20; padding: 2px 8px; border-radius: 4px;">:22</span> (SSH)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- VPN Access Flow Diagram -->
+            <h3 style="color: #ffd93d; margin: 30px 0 15px 0;">VPN Access Flow</h3>
+            <div style="background: #0a0a0a; border-radius: 15px; padding: 30px; font-family: 'Courier New', monospace; overflow-x: auto;">
+                <pre style="color: #00ff88; font-size: 0.85rem; line-height: 1.8;">
+<span style="color: #a855f7; font-weight: bold;">CLIENT VPN NETWORK (10.8.0.0/24)</span>
+<span style="color: #888;">┌──────────────────────────────────────────────────────────────────────────────────┐</span>
+<span style="color: #888;">│</span>  <span style="color: #a855f7;">&#128100; Ariful</span>     <span style="color: #a855f7;">&#128100; Sujon</span>      <span style="color: #a855f7;">&#128100; Hridoy</span>                                       <span style="color: #888;">│</span>
+<span style="color: #888;">│</span>  <span style="color: #00ff88;">10.8.0.2</span>      <span style="color: #00ff88;">10.8.0.3</span>      <span style="color: #00ff88;">10.8.0.4</span>                                        <span style="color: #888;">│</span>
+<span style="color: #888;">└───────────────────────────┬──────────────────────────────────────────────────────┘</span>
+                            <span style="color: #ffd93d;">│</span>
+                            <span style="color: #ffd93d;">▼</span> <span style="color: #888;">WireGuard VPN Tunnel (UDP :51820)</span>
+<span style="color: #888;">┌───────────────────────────────────────────────────────────────────────────────────┐</span>
+<span style="color: #888;">│</span>                        <span style="color: #ffd93d; font-weight: bold;">&#9830; WIREGUARD VPN SERVER</span>                                   <span style="color: #888;">│</span>
+<span style="color: #888;">│</span>                             <span style="color: #e74c3c;">10.10.0.30:51820</span>                                      <span style="color: #888;">│</span>
+<span style="color: #888;">└───────────────────────────────────────┬───────────────────────────────────────────┘</span>
+                                        <span style="color: #ffd93d;">│</span>
+                  <span style="color: #888;">Routes to 10.10.0.0/24</span> <span style="color: #ffd93d;">│</span>
+                                        <span style="color: #ffd93d;">▼</span>
+<span style="color: #00ff88; font-weight: bold;">SERVER NETWORK (10.10.0.0/24)</span>
+<span style="color: #888;">┌───────────────────────────────────────────────────────────────────────────────────┐</span>
+<span style="color: #888;">│</span>                                                                                   <span style="color: #888;">│</span>
+<span style="color: #888;">│</span>  <span style="color: #ff6b6b;">&#9632; Server 1 (LB)</span>        <span style="color: #00ff88;">&#9632; Server 2</span>           <span style="color: #e74c3c;">&#9632; Redis</span>                         <span style="color: #888;">│</span>
+<span style="color: #888;">│</span>    <span style="color: #ff6b6b;">10.10.0.10</span>             <span style="color: #00ff88;">10.10.0.11</span>          <span style="color: #e74c3c;">10.10.0.30</span>                       <span style="color: #888;">│</span>
+<span style="color: #888;">│</span>    :80, :443, :8080        :8080, :8081         :6379                             <span style="color: #888;">│</span>
+<span style="color: #888;">│</span>                                                                                   <span style="color: #888;">│</span>
+<span style="color: #888;">│</span>  <span style="color: #ffd93d;">&#9632; Write DB</span>            <span style="color: #ffd93d;">&#9632; Read DB</span>                                                <span style="color: #888;">│</span>
+<span style="color: #888;">│</span>    <span style="color: #ffd93d;">10.10.0.20</span>             <span style="color: #ffd93d;">10.10.0.21</span>                                              <span style="color: #888;">│</span>
+<span style="color: #888;">│</span>    :3306 (Primary)         :3306 (Replica)                                        <span style="color: #888;">│</span>
+<span style="color: #888;">│</span>                                                                                   <span style="color: #888;">│</span>
+<span style="color: #888;">└───────────────────────────────────────────────────────────────────────────────────┘</span>
+
+<span style="color: #00d9ff; font-weight: bold;">PUBLIC ACCESS (No VPN Required):</span>
+  texttorrent.com     → <span style="color: #ff6b6b;">10.10.0.10:80/443</span> → Load Balanced to backends
+  api.texttorrent.com → <span style="color: #ff6b6b;">10.10.0.10:80/443</span> → <span style="color: #00d9ff;">10.10.0.11:8081</span>
+
+<span style="color: #ff6b6b; font-weight: bold;">SSH ACCESS (VPN Required - Port 22 Only):</span>
+  <span style="color: #888;">Connect to VPN (10.8.0.x) first, then:</span>
+  ssh user@<span style="color: #ff6b6b;">10.10.0.10</span>  → Server 1 (Load Balancer)
+  ssh user@<span style="color: #00ff88;">10.10.0.11</span>  → Server 2 (App Backend)
+  ssh user@<span style="color: #ffd93d;">10.10.0.20</span>  → MySQL Write (Primary)
+  ssh user@<span style="color: #ffd93d;">10.10.0.21</span>  → MySQL Read (Replica)
+  ssh user@<span style="color: #e74c3c;">10.10.0.30</span>  → VPN + Redis Server
+                </pre>
+            </div>
+
+            <!-- Access Instructions -->
+            <div class="info-grid" style="margin-top: 30px;">
+                <div class="info-card" style="border: 1px solid #a855f7;">
+                    <h4 style="color: #a855f7;">&#128274; How to Connect</h4>
+                    <p>1. Install WireGuard client on your device</p>
+                    <p>2. Import your configuration file (contains your assigned IP)</p>
+                    <p>3. Connect to VPN server at <code style="background: #333; padding: 2px 6px; border-radius: 4px;">10.10.0.30:51820</code></p>
+                    <p>4. Access internal resources on <code style="background: #333; padding: 2px 6px; border-radius: 4px;">10.10.0.0/24</code></p>
+                </div>
+                <div class="info-card" style="border: 1px solid #00ff88;">
+                    <h4 style="color: #00ff88;">&#128640; After VPN Connection (SSH Port 22)</h4>
+                    <p>Server 1: <code style="background: #333; padding: 2px 6px; border-radius: 4px;">ssh user@10.10.0.10</code></p>
+                    <p>Server 2: <code style="background: #333; padding: 2px 6px; border-radius: 4px;">ssh user@10.10.0.11</code></p>
+                    <p>MySQL Write: <code style="background: #333; padding: 2px 6px; border-radius: 4px;">ssh user@10.10.0.20</code></p>
+                    <p>MySQL Read: <code style="background: #333; padding: 2px 6px; border-radius: 4px;">ssh user@10.10.0.21</code></p>
+                    <p>VPN/Redis: <code style="background: #333; padding: 2px 6px; border-radius: 4px;">ssh user@10.10.0.30</code></p>
+                </div>
+                <div class="info-card" style="border: 1px solid #ffd93d;">
+                    <h4 style="color: #ffd93d;">&#128451; Database & Service Access (via VPN)</h4>
+                    <p>MySQL Primary: <code style="background: #333; padding: 2px 6px; border-radius: 4px;">mysql -h 10.10.0.20 -P 3306</code></p>
+                    <p>MySQL Replica: <code style="background: #333; padding: 2px 6px; border-radius: 4px;">mysql -h 10.10.0.21 -P 3306</code></p>
+                    <p>Redis CLI: <code style="background: #333; padding: 2px 6px; border-radius: 4px;">redis-cli -h 10.10.0.30 -p 6379</code></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detailed Traffic Flow Diagram -->
+        <div class="section" id="traffic-flow">
+            <h2>&#128506; Detailed Traffic Flow Diagram with IPs & Ports</h2>
+            <div style="background: #0a0a0a; border-radius: 15px; padding: 30px; font-family: 'Courier New', monospace; overflow-x: auto;">
+                <pre style="color: #00ff88; font-size: 0.85rem; line-height: 1.8;">
+<span style="color: #888;">┌─────────────────────────────────────────────────────────────────────────────────────────────┐</span>
+<span style="color: #888;">│</span>                                    <span style="color: #00d9ff; font-weight: bold;">INTERNET</span>                                              <span style="color: #888;">│</span>
+<span style="color: #888;">│</span>                                   <span style="color: #ffd93d;">Users/Clients</span>                                            <span style="color: #888;">│</span>
+<span style="color: #888;">└─────────────────────────────────────────┬───────────────────────────────────────────────────┘</span>
+                                          <span style="color: #00d9ff;">│</span>
+                                          <span style="color: #00d9ff;">▼</span> <span style="color: #ffd93d;">HTTP :80 / HTTPS :443</span>
+<span style="color: #888;">┌─────────────────────────────────────────────────────────────────────────────────────────────┐</span>
+<span style="color: #888;">│</span> <span style="color: #ff6b6b; font-weight: bold;">SERVER 1 - LOAD BALANCER</span>                                               <span style="color: #ff6b6b;">IP: 10.10.0.10</span>     <span style="color: #888;">│</span>
+<span style="color: #888;">│</span>─────────────────────────────────────────────────────────────────────────────────────────────<span style="color: #888;">│</span>
+<span style="color: #888;">│</span>  <span style="color: #00d9ff;">NGINX Reverse Proxy</span>                                                                       <span style="color: #888;">│</span>
+<span style="color: #888;">│</span>  ├── <span style="color: #ffd93d;">:80</span>  → app.texttorrent.org     → upstream: texttorrent_backend (IP Hash)             <span style="color: #888;">│</span>
+<span style="color: #888;">│</span>  ├── <span style="color: #ffd93d;">:80</span>  → api.texttorrent.org     → proxy_pass: <span style="color: #00ff88;">10.10.0.11:8081</span>                        <span style="color: #888;">│</span>
+<span style="color: #888;">│</span>  ├── <span style="color: #ffd93d;">:80</span>  → website.texttorrent.org → local PHP-FPM                                       <span style="color: #888;">│</span>
+<span style="color: #888;">│</span>  └── <span style="color: #ffd93d;">:443</span> → SSL Termination (all domains)                                                  <span style="color: #888;">│</span>
+<span style="color: #888;">│</span>                                                                                             <span style="color: #888;">│</span>
+<span style="color: #888;">│</span>  <span style="color: #00d9ff;">Local Backend</span> (<span style="color: #ffd93d;">:8080</span>)                                                                      <span style="color: #888;">│</span>
+<span style="color: #888;">│</span>  └── /var/www/html/texttorrent/public → PHP 8.3-FPM                                        <span style="color: #888;">│</span>
+<span style="color: #888;">└───────────────────────────────┬─────────────────────────────────┬───────────────────────────┘</span>
+                                <span style="color: #00d9ff;">│</span>                                 <span style="color: #00d9ff;">│</span>
+       <span style="color: #00ff88;">vRack: 10.10.0.10</span> ────<span style="color: #00d9ff;">│</span>─────────────────────────────────<span style="color: #00d9ff;">│</span>────── <span style="color: #00ff88;">vRack: 10.10.0.11</span>
+                                <span style="color: #00d9ff;">│</span>                                 <span style="color: #00d9ff;">│</span>
+                                <span style="color: #00d9ff;">▼</span> <span style="color: #ffd93d;">:8080</span> (App)                    <span style="color: #00d9ff;">▼</span> <span style="color: #ffd93d;">:8081</span> (API)
+<span style="color: #888;">┌───────────────────────────────────────────────────────────────────────────────────────────────┐</span>
+<span style="color: #888;">│</span> <span style="color: #00ff88; font-weight: bold;">SERVER 2 - BACKEND</span>                                                   <span style="color: #00ff88;">IP: 10.10.0.11</span>       <span style="color: #888;">│</span>
+<span style="color: #888;">│</span>───────────────────────────────────────────────────────────────────────────────────────────────<span style="color: #888;">│</span>
+<span style="color: #888;">│</span>  <span style="color: #00ff88;">App Backend</span> (<span style="color: #ffd93d;">:8080</span>)                         <span style="color: #00d9ff;">API Backend</span> (<span style="color: #ffd93d;">:8081</span>)                          <span style="color: #888;">│</span>
+<span style="color: #888;">│</span>  ├── Root: /var/www/html/texttorrent/public   ├── Root: /var/www/html/api/public             <span style="color: #888;">│</span>
+<span style="color: #888;">│</span>  ├── PHP 8.3-FPM                              ├── PHP 8.3-FPM                                 <span style="color: #888;">│</span>
+<span style="color: #888;">│</span>  ├── X-Backend-Server: "10.10.0.11"           ├── real_ip_header: X-Forwarded-For            <span style="color: #888;">│</span>
+<span style="color: #888;">│</span>  └── client_max_body_size: 150M               └── set_real_ip_from: 10.10.0.10               <span style="color: #888;">│</span>
+<span style="color: #888;">└───────────────────────────────────────────────────────────────────────────────────────────────┘</span>
+
+<span style="color: #ffd93d; font-weight: bold;">UPSTREAM POOL (texttorrent_backend) - IP Hash Load Balancing:</span>
+<span style="color: #888;">┌─────────────────────────────────────────────────────────────────────────────────────────────┐</span>
+<span style="color: #888;">│</span>  <span style="color: #00ff88;">10.10.0.10:8080</span> ◄──┬──► <span style="color: #00ff88;">10.10.0.11:8080</span>                                                   <span style="color: #888;">│</span>
+<span style="color: #888;">│</span>  max_fails=3        │    max_fails=3                                                        <span style="color: #888;">│</span>
+<span style="color: #888;">│</span>  fail_timeout=30s   │    fail_timeout=30s                                                   <span style="color: #888;">│</span>
+<span style="color: #888;">│</span>                     │                                                                        <span style="color: #888;">│</span>
+<span style="color: #888;">│</span>              <span style="color: #ffd93d;">keepalive: 32 connections</span>                                                       <span style="color: #888;">│</span>
+<span style="color: #888;">└─────────────────────────────────────────────────────────────────────────────────────────────┘</span>
+                </pre>
+            </div>
+        </div>
+
+        <!-- Domains & Services -->
+        <div class="section" id="domains">
+            <h2>&#127758; Domains & Services Mapping</h2>
+            <div class="info-grid">
+                <div class="info-card">
+                    <h4>&#128196; app.texttorrent.org</h4>
+                    <p><strong>Type:</strong> Load Balanced Application</p>
+                    <p><strong>Backend:</strong> 10.10.0.10:8080 & 10.10.0.11:8080</p>
+                    <p><strong>Method:</strong> IP Hash (Session Persistence)</p>
+                    <p><strong>Max Upload:</strong> 150MB</p>
+                </div>
+                <div class="info-card">
+                    <h4>&#128161; api.texttorrent.org</h4>
+                    <p><strong>Type:</strong> API Proxy</p>
+                    <p><strong>Backend:</strong> 10.10.0.11:8081</p>
+                    <p><strong>Features:</strong> WebSocket Support, Long Timeouts</p>
+                </div>
+                <div class="info-card">
+                    <h4>&#127760; website.texttorrent.org</h4>
+                    <p><strong>Type:</strong> Static Website (Laravel)</p>
+                    <p><strong>Served From:</strong> Server 1 directly</p>
+                    <p><strong>Path:</strong> /var/www/html/website/public</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Load Balancer Configuration -->
+        <div class="section" id="load-balancer">
+            <h2>&#9878; Load Balancer Configuration</h2>
+
+            <h3>Upstream Pool (app.texttorrent.org)</h3>
+            <div class="upstream-viz">
+                <div class="upstream-header">
+                    <div class="upstream-method">IP Hash Load Balancing</div>
+                    <p style="color: #888;">Same client IP always routes to the same backend server (Session Persistence)</p>
+                </div>
+                <div class="upstream-servers">
+                    <div class="upstream-server">
+                        <div class="ip">10.10.0.10:8080</div>
+                        <div class="params">max_fails=3<br>fail_timeout=30s</div>
+                    </div>
+                    <div class="upstream-server">
+                        <div class="ip">10.10.0.11:8080</div>
+                        <div class="params">max_fails=3<br>fail_timeout=30s</div>
+                    </div>
+                </div>
+            </div>
+
+            <h3>Upstream Configuration</h3>
+            <div class="config-block">
+<pre><span class="keyword">upstream</span> <span class="value">texttorrent_backend</span> {
+    <span class="comment"># Load balancing method: IP Hash for session persistence</span>
+    <span class="keyword">ip_hash</span>;
+
+    <span class="comment"># Backend servers with health check parameters</span>
+    <span class="keyword">server</span> <span class="value">10.10.0.10:8080</span> max_fails=3 fail_timeout=30s;
+    <span class="keyword">server</span> <span class="value">10.10.0.11:8080</span> max_fails=3 fail_timeout=30s;
+
+    <span class="comment"># Keep connections alive for better performance</span>
+    <span class="keyword">keepalive</span> <span class="value">32</span>;
+}</pre>
+            </div>
+
+            <h3>Main Server Block (app.texttorrent.org)</h3>
+            <div class="config-block">
+<pre><span class="keyword">server</span> {
+    <span class="keyword">listen</span> <span class="value">80</span>;
+    <span class="keyword">server_name</span> <span class="value">app.texttorrent.org</span>;
+
+    <span class="keyword">client_max_body_size</span> <span class="value">150M</span>;
+
+    <span class="comment"># Security Headers</span>
+    <span class="keyword">add_header</span> X-Frame-Options <span class="value">"SAMEORIGIN"</span> always;
+    <span class="keyword">add_header</span> X-XSS-Protection <span class="value">"1; mode=block"</span> always;
+    <span class="keyword">add_header</span> X-Content-Type-Options <span class="value">"nosniff"</span> always;
+
+    <span class="keyword">location</span> / {
+        <span class="keyword">proxy_pass</span> <span class="value">http://texttorrent_backend</span>;
+        <span class="keyword">proxy_http_version</span> <span class="value">1.1</span>;
+
+        <span class="comment"># Preserve client information</span>
+        <span class="keyword">proxy_set_header</span> Host $host;
+        <span class="keyword">proxy_set_header</span> X-Real-IP $remote_addr;
+        <span class="keyword">proxy_set_header</span> X-Forwarded-For $proxy_add_x_forwarded_for;
+        <span class="keyword">proxy_set_header</span> X-Forwarded-Proto $scheme;
+
+        <span class="comment"># Timeouts</span>
+        <span class="keyword">proxy_connect_timeout</span> <span class="value">10s</span>;
+        <span class="keyword">proxy_send_timeout</span> <span class="value">150s</span>;
+        <span class="keyword">proxy_read_timeout</span> <span class="value">150s</span>;
+
+        <span class="comment"># Automatic failover on errors</span>
+        <span class="keyword">proxy_next_upstream</span> error timeout http_500 http_502 http_503 http_504;
+        <span class="keyword">proxy_next_upstream_tries</span> <span class="value">3</span>;
+    }
+}</pre>
+            </div>
+        </div>
+
+        <!-- Traffic Flow -->
+        <div class="section">
+            <h2>&#128640; Traffic Flow Explanation</h2>
+            <div class="traffic-flow">
+                <div class="flow-step">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <h4>Client Request</h4>
+                        <p>User sends HTTP/HTTPS request to app.texttorrent.org (resolved to Server 1's public IP)</p>
+                        <p style="margin-top: 8px;"><span style="background: #ffd93d; color: #000; padding: 2px 8px; border-radius: 4px; font-family: monospace;">Port :80 or :443</span></p>
+                    </div>
+                </div>
+                <div class="flow-step">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <h4>Load Balancer Receives</h4>
+                        <p>Nginx on Server 1 receives the request</p>
+                        <p style="margin-top: 8px;"><span style="background: #ff6b6b; color: #000; padding: 2px 8px; border-radius: 4px; font-family: monospace;">10.10.0.10:80</span> <span style="background: #ff6b6b; color: #000; padding: 2px 8px; border-radius: 4px; font-family: monospace;">10.10.0.10:443</span></p>
+                    </div>
+                </div>
+                <div class="flow-step">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <h4>IP Hash Calculation</h4>
+                        <p>Nginx calculates hash of client's IP address to determine which backend server to use (ensures session persistence)</p>
+                        <p style="margin-top: 8px; color: #ffd93d;">Method: <code style="background: #333; padding: 2px 6px; border-radius: 4px;">ip_hash</code></p>
+                    </div>
+                </div>
+                <div class="flow-step">
+                    <div class="step-number">4</div>
+                    <div class="step-content">
+                        <h4>Backend Proxy (via OVH vRack 10.10.0.0/24)</h4>
+                        <p>Request is forwarded to one of the backend servers:</p>
+                        <p style="margin-top: 8px;">
+                            <span style="background: #00ff88; color: #000; padding: 2px 8px; border-radius: 4px; font-family: monospace;">10.10.0.10:8080</span>
+                            <span style="color: #888;">or</span>
+                            <span style="background: #00ff88; color: #000; padding: 2px 8px; border-radius: 4px; font-family: monospace;">10.10.0.11:8080</span>
+                            <span style="color: #888;">(App)</span>
+                        </p>
+                        <p style="margin-top: 5px;">
+                            <span style="background: #00d9ff; color: #000; padding: 2px 8px; border-radius: 4px; font-family: monospace;">10.10.0.11:8081</span>
+                            <span style="color: #888;">(API only)</span>
+                        </p>
+                    </div>
+                </div>
+                <div class="flow-step">
+                    <div class="step-number">5</div>
+                    <div class="step-content">
+                        <h4>PHP Processing</h4>
+                        <p>Backend Nginx passes PHP requests to PHP 8.3-FPM socket for Laravel application processing</p>
+                        <p style="margin-top: 8px;"><span style="background: #333; color: #00ff88; padding: 2px 8px; border-radius: 4px; font-family: monospace;">unix:/var/run/php/php8.3-fpm.sock</span></p>
+                    </div>
+                </div>
+                <div class="flow-step">
+                    <div class="step-number">6</div>
+                    <div class="step-content">
+                        <h4>Response Return</h4>
+                        <p>Response travels back through the same path to the client.</p>
+                        <p style="margin-top: 8px; color: #888;">Header added: <code style="background: #333; padding: 2px 6px; border-radius: 4px; color: #00ff88;">X-Backend-Server: "10.10.0.10"</code> or <code style="background: #333; padding: 2px 6px; border-radius: 4px; color: #00ff88;">"10.10.0.11"</code></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- API Proxy Configuration -->
+        <div class="section" id="api-config">
+            <h2>&#128161; API Proxy Configuration</h2>
+            <p>The API service (api.texttorrent.org) runs on Server 2 and is accessed through a reverse proxy on Server 1.</p>
+
+            <div class="config-block">
+<pre><span class="comment"># Server 1 - API Reverse Proxy</span>
+<span class="keyword">server</span> {
+    <span class="keyword">listen</span> <span class="value">80</span>;
+    <span class="keyword">server_name</span> <span class="value">api.texttorrent.org</span>;
+
+    <span class="keyword">location</span> / {
+        <span class="keyword">proxy_pass</span> <span class="value">http://10.10.0.11:8081</span>;
+
+        <span class="comment"># WebSocket Support</span>
+        <span class="keyword">proxy_set_header</span> Upgrade $http_upgrade;
+        <span class="keyword">proxy_set_header</span> Connection <span class="value">"upgrade"</span>;
+
+        <span class="comment"># Extended timeouts for long-running requests</span>
+        <span class="keyword">proxy_read_timeout</span> <span class="value">300</span>;
+        <span class="keyword">proxy_connect_timeout</span> <span class="value">300</span>;
+        <span class="keyword">proxy_send_timeout</span> <span class="value">300</span>;
+    }
+}</pre>
+            </div>
+
+            <div class="config-block">
+<pre><span class="comment"># Server 2 - API Backend (Port 8081)</span>
+<span class="keyword">server</span> {
+    <span class="keyword">listen</span> <span class="value">8081</span>;
+    <span class="keyword">server_name</span> <span class="value">_</span>;
+    <span class="keyword">root</span> <span class="value">/var/www/html/api/public</span>;
+
+    <span class="comment"># Trust proxy headers from load balancer</span>
+    <span class="keyword">real_ip_header</span> X-Forwarded-For;
+    <span class="keyword">set_real_ip_from</span> <span class="value">10.10.0.10</span>;
+
+    <span class="keyword">location</span> ~ \.php$ {
+        <span class="keyword">fastcgi_pass</span> <span class="value">unix:/var/run/php/php8.3-fpm.sock</span>;
+        <span class="keyword">fastcgi_param</span> SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+    }
+}</pre>
+            </div>
+        </div>
+
+        <!-- Firewall Rules -->
+        <div class="section" id="firewall">
+            <h2>&#128274; UFW Firewall Rules</h2>
+
+            <h3>Server 1 (Load Balancer) - 10.10.0.10</h3>
+            <table class="firewall-table">
+                <thead>
+                    <tr>
+                        <th>Port/Service</th>
+                        <th>Action</th>
+                        <th>From</th>
+                        <th>Purpose</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>80/tcp</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>Anywhere</td>
+                        <td>Public HTTP traffic</td>
+                    </tr>
+                    <tr>
+                        <td>443/tcp</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>Anywhere</td>
+                        <td>Public HTTPS traffic</td>
+                    </tr>
+                    <tr>
+                        <td>22/tcp</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>10.10.0.0/24</td>
+                        <td>SSH via VPN only</td>
+                    </tr>
+                    <tr>
+                        <td>8080</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>10.10.0.0/24</td>
+                        <td>Internal backend communication</td>
+                    </tr>
+                    <tr>
+                        <td>Anywhere</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>10.10.0.0/24</td>
+                        <td>Full VPN network access</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Server 2 (Backend) - 10.10.0.11</h3>
+            <table class="firewall-table">
+                <thead>
+                    <tr>
+                        <th>Port/Service</th>
+                        <th>Action</th>
+                        <th>From</th>
+                        <th>Purpose</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>8080</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>10.10.0.0/24</td>
+                        <td>App backend from VPN</td>
+                    </tr>
+                    <tr>
+                        <td>8081</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>10.10.0.10</td>
+                        <td>API from load balancer only</td>
+                    </tr>
+                    <tr>
+                        <td>22/tcp</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>10.10.0.0/24</td>
+                        <td>SSH via VPN</td>
+                    </tr>
+                    <tr>
+                        <td>8080</td>
+                        <td><span class="deny-badge">DENY</span></td>
+                        <td>Anywhere</td>
+                        <td>Block public access to backend</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3 style="color: #ffd93d;">MySQL Write (Primary) - 10.10.0.20</h3>
+            <table class="firewall-table">
+                <thead>
+                    <tr>
+                        <th>Port/Service</th>
+                        <th>Action</th>
+                        <th>From</th>
+                        <th>Purpose</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>22/tcp</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>103.158.4.241</td>
+                        <td>SSH from trusted IP #1</td>
+                    </tr>
+                    <tr>
+                        <td>22/tcp</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>103.49.200.220</td>
+                        <td>SSH from trusted IP #2</td>
+                    </tr>
+                    <tr>
+                        <td>22/tcp</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>10.8.0.0/24</td>
+                        <td>SSH from VPN clients</td>
+                    </tr>
+                    <tr>
+                        <td>22/tcp</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>10.10.0.0/24</td>
+                        <td>SSH from server network</td>
+                    </tr>
+                    <tr>
+                        <td>3306/tcp</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>10.8.0.0/24</td>
+                        <td>MySQL from VPN clients</td>
+                    </tr>
+                    <tr>
+                        <td>3306/tcp</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>10.10.0.0/24</td>
+                        <td>MySQL from server network (App servers)</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3 style="color: #ffd93d;">MySQL Read (Replica) - 10.10.0.21</h3>
+            <table class="firewall-table">
+                <thead>
+                    <tr>
+                        <th>Port/Service</th>
+                        <th>Action</th>
+                        <th>From</th>
+                        <th>Purpose</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>22/tcp</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>103.158.4.241</td>
+                        <td>SSH from trusted IP #1</td>
+                    </tr>
+                    <tr>
+                        <td>22/tcp</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>103.49.200.220</td>
+                        <td>SSH from trusted IP #2</td>
+                    </tr>
+                    <tr>
+                        <td>22/tcp</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>10.8.0.0/24</td>
+                        <td>SSH from VPN clients</td>
+                    </tr>
+                    <tr>
+                        <td>22/tcp</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>10.10.0.0/24</td>
+                        <td>SSH from server network</td>
+                    </tr>
+                    <tr>
+                        <td>3306/tcp</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>10.8.0.0/24</td>
+                        <td>MySQL from VPN clients</td>
+                    </tr>
+                    <tr>
+                        <td>3306/tcp</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>10.10.0.0/24</td>
+                        <td>MySQL from server network (Read queries)</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3 style="color: #e74c3c;">VPN + Redis Server - 10.10.0.30</h3>
+            <table class="firewall-table">
+                <thead>
+                    <tr>
+                        <th>Port/Service</th>
+                        <th>Action</th>
+                        <th>From</th>
+                        <th>Purpose</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>51820/udp</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>Anywhere</td>
+                        <td>WireGuard VPN (Public access for clients)</td>
+                    </tr>
+                    <tr>
+                        <td>22</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>103.158.4.241</td>
+                        <td>SSH from trusted IP #1</td>
+                    </tr>
+                    <tr>
+                        <td>22</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>103.49.200.220</td>
+                        <td>SSH from trusted IP #2</td>
+                    </tr>
+                    <tr>
+                        <td>22</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>10.8.0.0/24</td>
+                        <td>SSH from VPN clients</td>
+                    </tr>
+                    <tr>
+                        <td>6379</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>10.10.0.10</td>
+                        <td>Redis from Load Balancer</td>
+                    </tr>
+                    <tr>
+                        <td>6379</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>10.10.0.11</td>
+                        <td>Redis from App Backend</td>
+                    </tr>
+                    <tr>
+                        <td>6379/tcp</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>10.10.0.0/24</td>
+                        <td>Redis from server network</td>
+                    </tr>
+                    <tr>
+                        <td>6379/tcp</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>10.8.0.0/24</td>
+                        <td>Redis from VPN clients</td>
+                    </tr>
+                    <tr>
+                        <td>3000</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>Anywhere</td>
+                        <td>Grafana (Monitoring Dashboard)</td>
+                    </tr>
+                    <tr>
+                        <td>3000</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>10.8.0.0/24</td>
+                        <td>Grafana from VPN clients</td>
+                    </tr>
+                    <tr>
+                        <td>3000</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>10.10.0.0/24</td>
+                        <td>Grafana from server network</td>
+                    </tr>
+                    <tr>
+                        <td>9090</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>10.8.0.0/24</td>
+                        <td>Prometheus from VPN clients</td>
+                    </tr>
+                    <tr>
+                        <td>9090</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>10.10.0.0/24</td>
+                        <td>Prometheus from server network</td>
+                    </tr>
+                    <tr>
+                        <td>5000/tcp</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>10.10.0.0/24</td>
+                        <td>Docker Registry from servers</td>
+                    </tr>
+                    <tr>
+                        <td>5000/tcp</td>
+                        <td><span class="allow-badge">ALLOW</span></td>
+                        <td>10.8.0.0/24</td>
+                        <td>Docker Registry from VPN clients</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <!-- VPN Server Services Summary -->
+            <div style="background: linear-gradient(135deg, #2e1a1a, #1a1a2e); border: 2px solid #e74c3c; border-radius: 10px; padding: 20px; margin-top: 20px;">
+                <h4 style="color: #e74c3c; margin-bottom: 15px;">&#128295; VPN + Redis Server Services (10.10.0.30)</h4>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                    <div style="background: #0d0d0d; padding: 12px; border-radius: 8px;">
+                        <span style="color: #ffd93d; font-weight: bold;">:51820/udp</span>
+                        <p style="color: #888; font-size: 0.85rem; margin-top: 5px;">WireGuard VPN</p>
+                    </div>
+                    <div style="background: #0d0d0d; padding: 12px; border-radius: 8px;">
+                        <span style="color: #e74c3c; font-weight: bold;">:6379</span>
+                        <p style="color: #888; font-size: 0.85rem; margin-top: 5px;">Redis Cache</p>
+                    </div>
+                    <div style="background: #0d0d0d; padding: 12px; border-radius: 8px;">
+                        <span style="color: #00ff88; font-weight: bold;">:3000</span>
+                        <p style="color: #888; font-size: 0.85rem; margin-top: 5px;">Grafana Dashboard</p>
+                    </div>
+                    <div style="background: #0d0d0d; padding: 12px; border-radius: 8px;">
+                        <span style="color: #00d9ff; font-weight: bold;">:9090</span>
+                        <p style="color: #888; font-size: 0.85rem; margin-top: 5px;">Prometheus Metrics</p>
+                    </div>
+                    <div style="background: #0d0d0d; padding: 12px; border-radius: 8px;">
+                        <span style="color: #a855f7; font-weight: bold;">:5000</span>
+                        <p style="color: #888; font-size: 0.85rem; margin-top: 5px;">Docker Registry</p>
+                    </div>
+                    <div style="background: #0d0d0d; padding: 12px; border-radius: 8px;">
+                        <span style="color: #ff6b6b; font-weight: bold;">:22</span>
+                        <p style="color: #888; font-size: 0.85rem; margin-top: 5px;">SSH (Restricted)</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Security Features -->
+        <div class="section" id="security">
+            <h2>&#128737; Security Features</h2>
+            <div class="info-grid">
+                <div class="info-card">
+                    <h4>&#128274; X-Frame-Options</h4>
+                    <p>Set to "SAMEORIGIN" - Prevents clickjacking attacks by disallowing the page to be embedded in iframes on other domains.</p>
+                </div>
+                <div class="info-card">
+                    <h4>&#128737; X-XSS-Protection</h4>
+                    <p>Enabled with "mode=block" - Activates browser's built-in XSS filter and blocks rendering if attack detected.</p>
+                </div>
+                <div class="info-card">
+                    <h4>&#128196; X-Content-Type-Options</h4>
+                    <p>Set to "nosniff" - Prevents MIME-type sniffing, reducing exposure to drive-by download attacks.</p>
+                </div>
+                <div class="info-card">
+                    <h4>&#128274; Hidden Files Protection</h4>
+                    <p>All dotfiles (except .well-known) are denied access, protecting sensitive configuration files.</p>
+                </div>
+                <div class="info-card">
+                    <h4>&#127760; Network Isolation</h4>
+                    <p>Backend servers communicate only through OVH vRack private network (10.10.0.0/24), never exposed to public internet.</p>
+                </div>
+                <div class="info-card">
+                    <h4>&#128295; Real IP Preservation</h4>
+                    <p>X-Forwarded-For and X-Real-IP headers preserve original client IP through the proxy chain for logging and rate limiting.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Backend Server Configuration -->
+        <div class="section" id="backend">
+            <h2>&#128421; Backend Server Configurations</h2>
+
+            <h3>Server 1 Backend (10.10.0.10:8080)</h3>
+            <div class="config-block">
+<pre><span class="keyword">server</span> {
+    <span class="keyword">listen</span> <span class="value">8080</span>;
+    <span class="keyword">server_name</span> <span class="value">_</span>;
+    <span class="keyword">root</span> <span class="value">/var/www/html/texttorrent/public</span>;
+
+    <span class="comment"># Identifies which backend handled the request</span>
+    <span class="keyword">add_header</span> X-Backend-Server <span class="value">"10.10.0.10"</span> always;
+
+    <span class="keyword">location</span> ~ \.php$ {
+        <span class="keyword">fastcgi_pass</span> <span class="value">unix:/var/run/php/php8.3-fpm.sock</span>;
+        <span class="keyword">fastcgi_param</span> SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+    }
+}</pre>
+            </div>
+
+            <h3>Server 2 Backend (10.10.0.11:8080)</h3>
+            <div class="config-block">
+<pre><span class="keyword">server</span> {
+    <span class="keyword">listen</span> <span class="value">8080</span>;
+    <span class="keyword">server_name</span> <span class="value">_</span>;
+    <span class="keyword">root</span> <span class="value">/var/www/html/texttorrent/public</span>;
+
+    <span class="keyword">client_max_body_size</span> <span class="value">150M</span>;
+
+    <span class="comment"># Identifies which backend handled the request</span>
+    <span class="keyword">add_header</span> X-Backend-Server <span class="value">"10.10.0.11"</span> always;
+
+    <span class="keyword">location</span> ~ \.php$ {
+        <span class="keyword">fastcgi_pass</span> <span class="value">unix:/var/run/php/php8.3-fpm.sock</span>;
+        <span class="keyword">fastcgi_param</span> SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+    }
+}</pre>
+            </div>
+        </div>
+
+        <!-- Load Balancing Methods -->
+        <div class="section" id="lb-methods">
+            <h2>&#9878; Load Balancing Methods Explained</h2>
+            <div class="info-grid">
+                <div class="info-card" style="border: 2px solid #ffd93d;">
+                    <h4 style="color: #ffd93d;">&#9989; IP Hash (Currently Used)</h4>
+                    <p>Calculates a hash from client's IP address to determine backend server. Ensures same client always reaches same server - essential for session persistence.</p>
+                    <p style="margin-top: 10px;"><strong>Best for:</strong> Applications with session state, shopping carts, user logins.</p>
+                </div>
+                <div class="info-card">
+                    <h4>&#128260; Round Robin (Default)</h4>
+                    <p>Distributes requests sequentially across all servers. Simple and effective for stateless applications.</p>
+                    <p style="margin-top: 10px;"><strong>Best for:</strong> Stateless APIs, microservices.</p>
+                </div>
+                <div class="info-card">
+                    <h4>&#128202; Least Connections</h4>
+                    <p>Routes to server with fewest active connections. Ideal when request processing times vary significantly.</p>
+                    <p style="margin-top: 10px;"><strong>Best for:</strong> Varied workloads, long-running requests.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Key Configuration Parameters -->
+        <div class="section" id="parameters">
+            <h2>&#128736; Key Configuration Parameters</h2>
+            <div class="info-grid">
+                <div class="info-card">
+                    <h4>max_fails=3</h4>
+                    <p>Number of failed attempts before marking server as unavailable. After 3 consecutive failures, server is removed from rotation.</p>
+                </div>
+                <div class="info-card">
+                    <h4>fail_timeout=30s</h4>
+                    <p>Time period for counting failures and duration server stays marked as failed. After 30s, server is retried.</p>
+                </div>
+                <div class="info-card">
+                    <h4>keepalive 32</h4>
+                    <p>Maintains 32 idle keepalive connections to upstream servers, reducing connection overhead.</p>
+                </div>
+                <div class="info-card">
+                    <h4>proxy_next_upstream</h4>
+                    <p>Automatically tries next server on: error, timeout, 500, 502, 503, 504 responses. Up to 3 attempts.</p>
+                </div>
+                <div class="info-card">
+                    <h4>client_max_body_size 150M</h4>
+                    <p>Maximum allowed size for client request body. Essential for file uploads up to 150MB.</p>
+                </div>
+                <div class="info-card">
+                    <h4>proxy_read_timeout 300</h4>
+                    <p>5-minute timeout for reading response from backend. Important for long-running API operations.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Summary -->
+        <div class="section" style="background: linear-gradient(135deg, #1a2e1a, #1e1e2e);">
+            <h2>&#128218; Architecture Summary</h2>
+            <div class="info-grid">
+                <div class="info-card">
+                    <h4>&#127919; High Availability</h4>
+                    <p>Two backend servers with automatic failover ensure the application remains available even if one server fails.</p>
+                </div>
+                <div class="info-card">
+                    <h4>&#128200; Scalability</h4>
+                    <p>New backend servers can be added to the upstream pool without service interruption.</p>
+                </div>
+                <div class="info-card">
+                    <h4>&#128274; Security</h4>
+                    <p>Backend servers isolated on private VPN network, multiple security headers, and strict firewall rules.</p>
+                </div>
+                <div class="info-card">
+                    <h4>&#9889; Performance</h4>
+                    <p>Keepalive connections, optimal timeouts, and efficient request distribution minimize latency.</p>
+                </div>
+            </div>
+        </div>
+
+        <footer style="text-align: center; padding: 30px; color: #666;">
+            <p>TextTorrent Infrastructure Documentation</p>
+            <p style="font-size: 0.9rem;">Generated for Ubuntu Server Nginx Deployment</p>
+        </footer>
+    </div>
+
+    <!-- Back to Top Button -->
+    <a href="#top" id="backToTop" style="
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        background: linear-gradient(135deg, #00d9ff, #00ff88);
+        color: #000;
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+        font-size: 1.5rem;
+        box-shadow: 0 4px 15px rgba(0, 217, 255, 0.4);
+        opacity: 0;
+        transition: opacity 0.3s, transform 0.3s;
+        z-index: 999;
+    ">&#8593;</a>
+
+    <script>
+        // Mobile menu toggle
+        function toggleMenu() {
+            const menu = document.getElementById('navMenu');
+            menu.classList.toggle('active');
+        }
+
+        // Close menu when clicking a link (mobile)
+        document.querySelectorAll('.navbar-menu a').forEach(link => {
+            link.addEventListener('click', () => {
+                const menu = document.getElementById('navMenu');
+                menu.classList.remove('active');
+            });
+        });
+
+        // Back to top button visibility
+        const backToTop = document.getElementById('backToTop');
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 500) {
+                backToTop.style.opacity = '1';
+                backToTop.style.transform = 'scale(1)';
+            } else {
+                backToTop.style.opacity = '0';
+                backToTop.style.transform = 'scale(0.8)';
+            }
+        });
+
+        // Highlight active nav item on scroll
+        const sections = document.querySelectorAll('.section, .architecture-diagram');
+        const navLinks = document.querySelectorAll('.navbar-menu a');
+
+        window.addEventListener('scroll', () => {
+            let current = '';
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop - 100;
+                if (window.scrollY >= sectionTop) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            navLinks.forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href') === '#' + current) {
+                    link.classList.add('active');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
